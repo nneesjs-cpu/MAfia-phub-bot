@@ -4,12 +4,12 @@
     "keywords": ["pornhub", "python", "telegram"],
     "env": {
         "API_ID": {
-            "description": "You api id, from my.telegram.org or @ScrapperRoBot.",
+            "description": "You api id, from my.telegram.org",
             "value": "", 
             "required": true
         },
         "API_HASH": {
-            "description": "You api hash, from my.telegram.org or @ScrapperRoBot.",
+            "description": "You api hash, from my.telegram.org",
             "value": "", 
             "required": true
         },
