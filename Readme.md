@@ -17,7 +17,7 @@ This is a Pornhub bot made for telegram. It can search and download Pornhub vide
 
 Get the necessary variables and deploy your own bot to Heroku.
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://github.com/Mafia58/MAfia-phub-bot)
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Mafia58/MAfia-phub-bot)
 
 
 ## License
