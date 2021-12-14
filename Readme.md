@@ -20,5 +20,3 @@ Get the necessary variables and deploy your own bot to Heroku.
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Mafia58/MAfia-phub-bot)
 
 
-## License
-[MIT](https://choosealicense.com/licenses/mit/)
