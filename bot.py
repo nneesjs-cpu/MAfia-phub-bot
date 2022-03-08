@@ -115,14 +115,14 @@ async def search(client, InlineQuery : InlineQuery):
 async def start(client, message : Message):
     await message.reply(f"Hello @{message.from_user.username},\n"
                         "━━━━━━━━━━━━━━━━━━━━━\n"
-                        "අඩෝ මේ මේ ඉන්නෙ Pornhub වැල් Search කරන Bot කෙනෙක්\n"
+                        "I am the bot Who Search & download Pornhub Videos\n"
                         "━━━━━━━━━━━━━━━━━━━━━\n"
-                        "⚠️The Bot Contains 18+ Content\n"
-                        "So Kindly Access it with Your own\n"
-                        "Risk. Children Please Stay Away.\n" 
-                        "We don't intend to spread Pørno-\n"
-                        "-graphy here. It's just a bot for a\n" 
-                        "purpose as many of them wanted.\n" 
+                        "⚠️I'm Contains 18+ Content\n"
+                        "❌So Kindly Access it with Your own Risk\n"
+                        "❌Children Please Stay Away.\n" 
+                        "❗️We don't intend to spread Pørnography here.\n"
+                        "It's just a bot for apurpose as many of them wanted.\n" 
+                        "❗️So if you under 18 years old stay away❗️\n" 
                         "━━━━━━━━━━━━━━━━━━━━━\n"
                         "Click The Buttons Below To Search", reply_markup=InlineKeyboardMarkup([[btn1, btn2]]))
     
@@ -163,7 +163,7 @@ async def download_video(client, callback : CallbackQuery):
 
     for file in os.listdir('.'):
         if file.endswith(".mp4"):
-            await callback.message.reply_video(f"{file}", caption="**Here Is your Requested Video**\nBot by:- @akalankanime",
+            await callback.message.reply_video(f"{file}", caption="**Here Is your Requested Video**\n\nBot by:- @akalankanime",
                                 reply_markup=InlineKeyboardMarkup([[btn1, btn2]]))
             os.remove(f"{file}")
             break
