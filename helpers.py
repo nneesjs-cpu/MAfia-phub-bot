@@ -3,7 +3,7 @@ import asyncio
 import threading
 
 def humanbytes(size):
-    """Convert Bytes To Bytes So That Human Can Read It"""
+    """Convert Bytes To Bytes So That Human Can Read It."""
     if not size:
         return ""
     power = 2 ** 10
