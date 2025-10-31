@@ -1,106 +1,104 @@
 import asyncio
 import os
+import glob
+import shutil
 
-import youtube_dl
+# prefer yt_dlp (more updated); fallback to youtube_dl if yt_dlp not installed
+try:
+    from yt_dlp import YoutubeDL as YTDL
+except Exception:
+    import youtube_dl as YTDL
+
 from pornhub_api import PornhubApi
 from pornhub_api.backends.aiohttp import AioHttpBackend
 from pyrogram import Client, filters
-from pyrogram.errors.exceptions import UserNotParticipant
-from pyrogram.types import (CallbackQuery, InlineKeyboardButton,
-                            InlineKeyboardMarkup, InlineQuery,
-                            InlineQueryResultArticle, InputTextMessageContent,
-                            Message)
+from pyrogram.types import (
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
+    InlineQuery, InlineQueryResultArticle, InputTextMessageContent,
+    Message
+)
 from youtube_dl.utils import DownloadError
 
 from config import Config
 from helpers import download_progress_hook
-from config import SUDO
-from pyrogram import filters
-from sql import count_users, user_list, remove_user
+from sql import add_user, count_users, user_list, remove_user
 
-app = Client("pornhub_bot",
-            api_id=Config.API_ID,
-            api_hash=Config.API_HASH,
-            bot_token=Config.BOT_TOKEN)
+# Ensure API_ID is int or None
+API_ID = Config.API_ID
+API_HASH = Config.API_HASH
+BOT_TOKEN = Config.BOT_TOKEN
 
-if os.path.exists("downloads"):
-    print("Download Path Exist")
-else:
-    print("Download Path Created")
+if API_ID is None or API_HASH is None or BOT_TOKEN is None:
+    raise RuntimeError("Please set API_ID, API_HASH and BOT_TOKEN environment variables.")
 
-btn1 = InlineKeyboardButton("Search Here",switch_inline_query_current_chat="",)
+app = Client(
+    "pornhub_bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN,
+    workdir="."
+)
+
+# Ensure downloads directory exists
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+btn1 = InlineKeyboardButton("Search Here", switch_inline_query_current_chat="")
 btn2 = InlineKeyboardButton("Go Inline", switch_inline_query="")
 
-active_list = []
-queue = []
+active_list = set()
 
+# filter to detect pornhub urls in messages
+link_filter = filters.regex(r"(?i)(https?://)?(www\.)?pornhub\.(com|org|xxx)")
 
 async def run_async(func, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, func, *args, **kwargs)
 
-
-def link_fil(filter, client, update):
-    if "www.pornhub" in update.text:
-        return True
-    else:
-        return False
-
-link_filter = filters.create(link_fil, name="link_filter")
-
-
 @app.on_inline_query()
-async def search(client, InlineQuery : InlineQuery):
-    query = InlineQuery.query
+async def search(client, inline_query: InlineQuery):
+    query = inline_query.query or ""
+    if not query:
+        await inline_query.answer([], switch_pm_text="Search Results", switch_pm_parameter="start")
+        return
+
     backend = AioHttpBackend()
     api = PornhubApi(backend=backend)
     results = []
     try:
-        src = await api.search.search(query)#, ordering="mostviewed")
-    except ValueError as e:
+        src = await api.search.search(query)
+    except ValueError:
+        # no results
         results.append(InlineQueryResultArticle(
-                title="No Such Videos Found!",
-                description="Sorry! No Such Vedos Were Found. Plz Try Again",
-                input_message_content=InputTextMessageContent(
-                    message_text="No Such Videos Found!"
-                )
-            ))
-        await InlineQuery.answer(results,
-                            switch_pm_text="Search Results",
-                            switch_pm_parameter="start")
-            
+            title="No Such Videos Found!",
+            description="Sorry! No Such Videos Were Found. Please Try Again",
+            input_message_content=InputTextMessageContent(message_text="No Such Videos Found!")
+        ))
+        await inline_query.answer(results, switch_pm_text="Search Results", switch_pm_parameter="start")
+        await backend.close()
+        return
+    except Exception:
+        await inline_query.answer([], switch_pm_text="Search Results", switch_pm_parameter="start")
+        await backend.close()
         return
 
-
-    videos = src.videos
+    videos = getattr(src, "videos", []) or []
     await backend.close()
-    
 
     for vid in videos:
-
         try:
-            pornstars = ", ".join(v for v in vid.pornstars)
-            categories = ", ".join(v for v in vid.categories)
-            tags = ", #".join(v for v in vid.tags)
-        except:
+            pornstars = ", ".join(v for v in vid.pornstars) if vid.pornstars else "N/A"
+            categories = ", ".join(v for v in vid.categories) if vid.categories else "N/A"
+            tags = ", #".join(v for v in vid.tags) if vid.tags else ""
+        except Exception:
             pornstars = "N/A"
             categories = "N/A"
             tags = "N/A"
-        msgg = (f"**TITLE** : `{vid.title}`\n"
-                f"**DURATION** : `{vid.duration}`\n"
-                f"VIEWS : `{vid.views}`\n\n"
-                f"**{pornstars}**\n"
-                f"Categories : {categories}\n\n"
-                f"{tags}"
-                f"Link : {vid.url}")
 
         msg = f"{vid.url}"
-         
         results.append(InlineQueryResultArticle(
             title=vid.title,
-            input_message_content=InputTextMessageContent(
-                message_text=msg,
-            ),
+            input_message_content=InputTextMessageContent(message_text=msg),
             description=f"Duration : {vid.duration}\nViews : {vid.views}\nRating : {vid.rating}",
             thumb_url=vid.thumb,
             reply_markup=InlineKeyboardMarkup([[
@@ -109,99 +107,18 @@ async def search(client, InlineQuery : InlineQuery):
             ]]),
         ))
 
-    await InlineQuery.answer(results,
-                            switch_pm_text="Search Results",
-                            switch_pm_parameter="start")
+    await inline_query.answer(results, switch_pm_text="Search Results", switch_pm_parameter="start")
 
 
 @app.on_message(filters.command("start"))
-async def start(client, message : Message):
-    await message.reply(f"Hello @{message.from_user.username},\n"
-                        "━━━━━━━━━━━━━━━━━━━━━\n"
-                        "I am the bot Who Search & download Pornhub Videos\n"
-                        "━━━━━━━━━━━━━━━━━━━━━\n"
-                        "⚠️I'm Contains 18+ Content\n"
-                        "❌So Kindly Access it with Your own Risk\n"
-                        "❌Children Please Stay Away.\n" 
-                        "❗️We don't intend to spread Pørnography here.\n"
-                        "It's just a bot for apurpose as many of them wanted.\n" 
-                        "❗️So if you under 18 years old stay away❗️\n" 
-                        "━━━━━━━━━━━━━━━━━━━━━\n"
-                        "Click The Buttons Below To Search", reply_markup=InlineKeyboardMarkup([[btn1, btn2]]))
-    
-
-@app.on_message(link_filter)
-async def options(client, message : Message):
-    print(message.text)
-    await message.reply("What would like to do?", 
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Download", f"d_{message.text}"), InlineKeyboardButton("Watch Video",url=message.text)]
-            ])
-            )
-
-
-@app.on_callback_query(filters.regex("^d"))
-async def download_video(client, callback : CallbackQuery):
-    url = callback.data.split("_",1)[1]
-    msg = await callback.message.edit("Downloading...")
-    user_id = callback.message.from_user.id
-
-    if user_id in active_list:
-        await callback.message.edit("Sorry! You can download only one video at a time")
-        return
-    else:
-        active_list.append(user_id)
-
-    ydl_opts = {
-            "progress_hooks": [lambda d: download_progress_hook(d, callback.message, client)]
-        }
-
-    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        try:
-            await run_async(ydl.download, [url])
-        except DownloadError:
-            await callback.message.edit("Sorry, There was a problem with that particular video")
-            return
-
-
-    for file in os.listdir('.'):
-        if file.endswith(".mp4"):
-            await callback.message.reply_video(f"{file}", caption="**Here Is your Requested Video**\n\nBot by:- @akalankanime",
-                                reply_markup=InlineKeyboardMarkup([[btn1, btn2]]))
-            os.remove(f"{file}")
-            break
-        else:
-            continue
-
-    await msg.delete()
-    active_list.remove(user_id)
-
-
-@app.on_message(filters.command("cc"))
-async def download_video(client, message : Message):
-    files = os.listdir("downloads")
-    await message.reply(files)
-
-@app.on_message(filters.command("stats") & filters.user(SUDO))
-async def botsatats(_, message):
-    users = count_users()
-    await message.reply_text(f"Total Users -  {users}")
-
-
-@app.on_message(filters.command('bcast') & filters.user(SUDO))
-async def broadcast(_, message):
-    if message.reply_to_message :
-        await message.reply_text("Started broadcast")
-        query = user_list()
-        for row in query:
-           try: 
-            chat_id = int(row[0])
-            reply = message.reply_to_message
-            await reply.copy(chat_id)
-           except:
-            pass
-            remove_user(chat_id)
-            await message.reply_text(f"{chat_id} blocked me, Removed from DB.")
-
-
-app.run()
+async def start(client, message: Message):
+    user = message.from_user
+    if user:
+        add_user(user.id, user.username)
+        await message.reply(
+            f"Hello @{user.username if user.username else user.first_name},\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            "I am the bot Who Search & download Pornhub Videos\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            "⚠️Contains 18+ Content — Use at your own risk.\n"
+            "━━━━━━━━━━━━━━━━━━━━
